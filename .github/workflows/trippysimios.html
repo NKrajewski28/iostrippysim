@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- Viewport set for mobile with safe-area support -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Ultra Trippy Particle Simulator – iOS Optimized</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet" />
+    <style>
+      /* Global reset and styling */
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      html, body {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: linear-gradient(135deg, #000, #222);
+        font-family: 'Orbitron', sans-serif;
+        color: #fff;
+        /* Use safe-area insets for iOS devices */
+        padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+      }
+      /* Fullscreen canvas */
+      #canvas {
+        position: absolute;
+        top: 0;
+        left: 0;
+        z-index: 1;
+      }
+      /* Control Panel */
+      #control-panel {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        width: 320px;
+        padding: 20px;
+        background: rgba(0, 0, 0, 0.85);
+        border: 2px solid #444;
+        border-radius: 10px;
+        z-index: 10;
+        backdrop-filter: blur(5px);
+        box-shadow: 0 0 20px rgba(0,0,0,0.9);
+        max-height: 90vh;
+        overflow-y: auto;
+      }
+      #control-panel h2 {
+        font-size: 20px;
+        margin-bottom: 15px;
+        text-align: center;
+        text-shadow: 1px 1px 2px #000;
+      }
+      #control-panel .control {
+        margin-bottom: 15px;
+      }
+      #control-panel label {
+        display: block;
+        font-size: 14px;
+        margin-bottom: 5px;
+      }
+      /* Increase touch target sizes for iOS */
+      #control-panel input[type="range"],
+      #control-panel select,
+      #control-panel input[type="color"] {
+        width: 100%;
+        -webkit-appearance: none;
+        background: #333;
+        border: 1px solid #555;
+        border-radius: 5px;
+        padding: 5px;
+        color: #fff;
+        transition: all 0.2s;
+      }
+      #control-panel input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 15px;
+        height: 15px;
+        background: #ff4081;
+        border-radius: 50%;
+        cursor: pointer;
+        border: none;
+        transition: background 0.2s;
+      }
+      #control-panel button {
+        width: 100%;
+        padding: 12px;
+        background: #ff4081;
+        border: none;
+        border-radius: 5px;
+        font-size: 16px;
+        cursor: pointer;
+        transition: background 0.3s;
+        color: #fff;
+        margin-top: 5px;
+      }
+      #control-panel button:hover {
+        background: #e0356a;
+      }
+      /* Debug Overlay */
+      #debug {
+        position: absolute;
+        bottom: 20px;
+        left: 20px;
+        background: rgba(0,0,0,0.75);
+        padding: 10px;
+        border-radius: 5px;
+        font-size: 12px;
+        z-index: 10;
+      }
+      /* Floating Minimize Button */
+      #minimizeBtn {
+        position: fixed;
+        top: 10px;
+        left: 10px;
+        z-index: 20;
+        padding: 10px 14px;
+        background: #ff4081;
+        border: none;
+        border-radius: 5px;
+        font-size: 14px;
+        color: #fff;
+        cursor: pointer;
+        transition: background 0.3s;
+      }
+      #minimizeBtn:hover {
+        background: #e0356a;
+      }
+      /* Custom Palette Section */
+      #customPaletteSection {
+        margin-top: 15px;
+        padding-top: 10px;
+        border-top: 1px solid #555;
+      }
+      #customPaletteSection h3 {
+        font-size: 16px;
+        margin-bottom: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="canvas"></canvas>
+    <div id="control-panel">
+      <h2>Control Panel</h2>
+      <div class="control">
+        <label for="particleCount">Particle Count: <span id="particleCountVal">1500</span></label>
+        <input type="range" id="particleCount" min="500" max="5000" value="1500" />
+      </div>
+      <div class="control">
+        <label for="baseSpeed">Base Speed: <span id="baseSpeedVal">1.5</span></label>
+        <input type="range" id="baseSpeed" min="0.1" max="5" step="0.1" value="1.5" />
+      </div>
+      <div class="control">
+        <label for="attraction">Attraction: <span id="attractionVal">0.005</span></label>
+        <input type="range" id="attraction" min="0" max="0.05" step="0.001" value="0.005" />
+      </div>
+      <div class="control">
+        <label for="trailOpacity">Trail Opacity: <span id="trailOpacityVal">0.1</span></label>
+        <input type="range" id="trailOpacity" min="0.01" max="0.5" step="0.01" value="0.1" />
+      </div>
+      <div class="control">
+        <label for="flowFieldType">Flow Field:</label>
+        <select id="flowFieldType">
+          <option value="Sine Wave">Sine Wave</option>
+          <option value="Cosine Wave">Cosine Wave</option>
+          <option value="SinCos">SinCos</option>
+          <option value="Radial">Radial</option>
+          <option value="Spiral">Spiral</option>
+          <option value="Perlin Noise">Perlin Noise</option>
+          <option value="Wave">Wave</option>
+          <option value="Oscillatory">Oscillatory</option>
+          <option value="Vortex">Vortex</option>
+          <option value="Curl Noise">Curl Noise</option>
+          <option value="Diffusive Flow">Diffusive Flow</option>
+          <option value="Chaotic Flow">Chaotic Flow</option>
+          <option value="Logarithmic Spiral">Logarithmic Spiral</option>
+          <option value="Tangential">Tangential</option>
+          <option value="Harmonic">Harmonic</option>
+          <option value="Lissajous Flow">Lissajous Flow</option>
+          <option value="Elliptical Flow">Elliptical Flow</option>
+          <option value="Rotational Flow">Rotational Flow</option>
+          <option value="Modulated Wave Flow">Modulated Wave Flow</option>
+          <option value="Composite Noise Flow">Composite Noise Flow</option>
+        </select>
+      </div>
+      <div class="control">
+        <label for="simulationMode">Simulation Mode:</label>
+        <select id="simulationMode">
+          <option value="Normal">Normal</option>
+          <option value="Chaos">Chaos</option>
+          <option value="Pulse">Pulse</option>
+          <option value="Gravity">Gravity</option>
+          <option value="Magnetic">Magnetic</option>
+          <option value="Nebula">Nebula</option>
+          <option value="Glitch">Glitch</option>
+          <option value="Fractal">Fractal</option>
+          <option value="Spectrum">Spectrum</option>
+          <option value="Swarm">Swarm</option>
+          <option value="Time Warp">Time Warp</option>
+          <option value="Reflective">Reflective</option>
+        </select>
+      </div>
+      <div class="control">
+        <label for="mouseMode">Mouse Mode:</label>
+        <select id="mouseMode">
+          <option value="Attract">Attract</option>
+          <option value="Repel">Repel</option>
+        </select>
+      </div>
+      <div class="control">
+        <label>
+          <input type="checkbox" id="vectorField" /> Show Vector Field
+        </label>
+      </div>
+      <div class="control">
+        <label>
+          <input type="checkbox" id="audioReactive" /> Audio Reactive
+        </label>
+      </div>
+      <!-- Custom Color Palette Section -->
+      <div id="customPaletteSection">
+        <h3>Custom Color Palette</h3>
+        <div class="control">
+          <label>
+            <input type="checkbox" id="useCustomPalette" /> Use Custom Palette
+          </label>
+        </div>
+        <div class="control">
+          <label for="customColor1">Color 1:</label>
+          <input type="color" id="customColor1" value="#ff4081" />
+        </div>
+        <div class="control">
+          <label for="customColor2">Color 2:</label>
+          <input type="color" id="customColor2" value="#00ffff" />
+        </div>
+        <div class="control">
+          <label for="customColor3">Color 3:</label>
+          <input type="color" id="customColor3" value="#ffea00" />
+        </div>
+        <div class="control">
+          <label for="customColor4">Color 4:</label>
+          <input type="color" id="customColor4" value="#ff5722" />
+        </div>
+        <div class="control">
+          <label for="customColor5">Color 5:</label>
+          <input type="color" id="customColor5" value="#4caf50" />
+        </div>
+      </div>
+      <button id="pauseBtn">Pause Simulation</button>
+      <button id="randomizeBtn">Randomize Settings</button>
+      <button id="saveSettingsBtn">Save Settings</button>
+      <button id="loadSettingsBtn">Load Settings</button>
+      <button id="resetBtn">Reset Simulation</button>
+    </div>
+    <div id="debug"></div>
+    <!-- Floating Minimize Button -->
+    <button id="minimizeBtn">Minimize Menus</button>
+    <script>
+      // Retina canvas scaling using devicePixelRatio
+      const canvas = document.getElementById('canvas');
+      const ctx = canvas.getContext('2d');
+      function resizeCanvas() {
+        const dpr = window.devicePixelRatio || 1;
+        canvas.style.width = window.innerWidth + 'px';
+        canvas.style.height = window.innerHeight + 'px';
+        canvas.width = window.innerWidth * dpr;
+        canvas.height = window.innerHeight * dpr;
+        ctx.resetTransform();
+        ctx.scale(dpr, dpr);
+      }
+      window.addEventListener('resize', () => { resizeCanvas(); resetParticles(); });
+      window.addEventListener('orientationchange', () => {
+        setTimeout(() => { resizeCanvas(); resetParticles(); }, 300);
+      });
+      resizeCanvas();
+
+      // Audio-reactive setup
+      let audioContext, analyser, dataArray;
+      function initAudio() {
+        navigator.mediaDevices.getUserMedia({ audio: true })
+          .then(stream => {
+            audioContext = new AudioContext();
+            const source = audioContext.createMediaStreamSource(stream);
+            analyser = audioContext.createAnalyser();
+            analyser.fftSize = 256;
+            dataArray = new Uint8Array(analyser.frequencyBinCount);
+          })
+          .catch(e => console.error("Audio access error:", e));
+      }
+
+      // Unified pointer handling (mouse & touch)
+      // For iOS, holding a finger on the screen sets mouseDown to true,
+      // which triggers the attract/repel behavior in the particle update.
+      let mouse = { x: canvas.width / 2, y: canvas.height / 2 };
+      let mouseDown = false;
+      function updatePosition(clientX, clientY) {
+        const rect = canvas.getBoundingClientRect();
+        mouse.x = clientX - rect.left;
+        mouse.y = clientY - rect.top;
+      }
+      // Mouse events
+      canvas.addEventListener('mousedown', (e) => { mouseDown = true; updatePosition(e.clientX, e.clientY); });
+      canvas.addEventListener('mousemove', (e) => { updatePosition(e.clientX, e.clientY); });
+      canvas.addEventListener('mouseup', () => { mouseDown = false; });
+      canvas.addEventListener('mouseleave', () => { mouseDown = false; });
+      canvas.addEventListener('click', (e) => { updatePosition(e.clientX, e.clientY); particles.push(new Particle(mouse.x, mouse.y)); });
+      // Touch events
+      canvas.addEventListener('touchstart', (e) => {
+        mouseDown = true;
+        const touch = e.touches[0];
+        updatePosition(touch.clientX, touch.clientY);
+        // Uncomment the next line if you want a new particle on touch start:
+        // particles.push(new Particle(mouse.x, mouse.y));
+        e.preventDefault();
+      }, { passive: false });
+      canvas.addEventListener('touchmove', (e) => {
+        const touch = e.touches[0];
+        updatePosition(touch.clientX, touch.clientY);
+        e.preventDefault();
+      }, { passive: false });
+      canvas.addEventListener('touchend', (e) => { mouseDown = false; e.preventDefault(); }, { passive: false });
+
+      // Simplex Noise implementation for noise-based flows
+      class SimplexNoise {
+        constructor(random = Math.random) {
+          this.p = new Uint8Array(256);
+          for (let i = 0; i < 256; i++) { this.p[i] = i; }
+          for (let i = 0; i < 256; i++) {
+            let r = i + Math.floor(random() * (256 - i));
+            [this.p[i], this.p[r]] = [this.p[r], this.p[i]];
+          }
+          this.perm = new Uint8Array(512);
+          for (let i = 0; i < 512; i++) { this.perm[i] = this.p[i & 255]; }
+        }
+        noise2D(x, y) {
+          const F2 = 0.366025403, G2 = 0.211324865;
+          let s = (x + y) * F2;
+          let i = Math.floor(x + s), j = Math.floor(y + s);
+          let t = (i + j) * G2;
+          let X0 = i - t, Y0 = j - t;
+          let x0 = x - X0, y0 = y - Y0;
+          let i1, j1;
+          if (x0 > y0) { i1 = 1; j1 = 0; } else { i1 = 0; j1 = 1; }
+          let x1 = x0 - i1 + G2, y1 = y0 - j1 + G2;
+          let x2 = x0 - 1.0 + 2.0 * G2, y2 = y0 - 1.0 + 2.0 * G2;
+          let ii = i & 255, jj = j & 255;
+          let gi0 = this.perm[ii + this.perm[jj]] % 12;
+          let gi1 = this.perm[ii + i1 + this.perm[jj + j1]] % 12;
+          let gi2 = this.perm[ii + 1 + this.perm[jj + 1]] % 12;
+          let t0 = 0.5 - x0*x0 - y0*y0;
+          let n0 = t0 < 0 ? 0 : Math.pow(t0, 4) * dot(grad3[gi0], x0, y0);
+          let t1 = 0.5 - x1*x1 - y1*y1;
+          let n1 = t1 < 0 ? 0 : Math.pow(t1, 4) * dot(grad3[gi1], x1, y1);
+          let t2 = 0.5 - x2*x2 - y2*y2;
+          let n2 = t2 < 0 ? 0 : Math.pow(t2, 4) * dot(grad3[gi2], x2, y2);
+          return 70.0 * (n0 + n1 + n2);
+        }
+      }
+      function dot(g, x, y) { return g[0] * x + g[1] * y; }
+      const grad3 = [
+        [1, 1], [-1, 1], [1, -1], [-1, -1],
+        [1, 0], [-1, 0], [1, 0], [-1, 0],
+        [0, 1], [0, -1], [0, 1], [0, -1]
+      ];
+      const noise = new SimplexNoise();
+
+      // Global settings from UI
+      const settings = {
+        particleCount: Number(document.getElementById('particleCount').value),
+        baseSpeed: Number(document.getElementById('baseSpeed').value),
+        attraction: Number(document.getElementById('attraction').value),
+        trailOpacity: Number(document.getElementById('trailOpacity').value),
+        flowFieldType: document.getElementById('flowFieldType').value,
+        simulationMode: document.getElementById('simulationMode').value,
+        mouseMode: document.getElementById('mouseMode').value,
+        vectorField: document.getElementById('vectorField').checked,
+        audioReactive: document.getElementById('audioReactive').checked,
+        useCustomPalette: document.getElementById('useCustomPalette').checked,
+        customPalette: [
+          document.getElementById('customColor1').value,
+          document.getElementById('customColor2').value,
+          document.getElementById('customColor3').value,
+          document.getElementById('customColor4').value,
+          document.getElementById('customColor5').value
+        ]
+      };
+
+      // Update custom palette when color pickers change
+      const paletteInputs = ['customColor1','customColor2','customColor3','customColor4','customColor5'];
+      paletteInputs.forEach((id, index) => {
+        document.getElementById(id).addEventListener('input', (e) => {
+          settings.customPalette[index] = e.target.value;
+        });
+      });
+      document.getElementById('useCustomPalette').addEventListener('change', (e) => {
+        settings.useCustomPalette = e.target.checked;
+      });
+
+      // UI event listeners for settings
+      document.getElementById('particleCount').addEventListener('input', (e) => {
+        settings.particleCount = Number(e.target.value);
+        document.getElementById('particleCountVal').innerText = e.target.value;
+        resetParticles();
+      });
+      document.getElementById('baseSpeed').addEventListener('input', (e) => {
+        settings.baseSpeed = Number(e.target.value);
+        document.getElementById('baseSpeedVal').innerText = e.target.value;
+        particles.forEach(p => { p.speed = settings.baseSpeed * (0.5 + p.layer); });
+      });
+      document.getElementById('attraction').addEventListener('input', (e) => {
+        settings.attraction = Number(e.target.value);
+        document.getElementById('attractionVal').innerText = e.target.value;
+      });
+      document.getElementById('trailOpacity').addEventListener('input', (e) => {
+        settings.trailOpacity = Number(e.target.value);
+        document.getElementById('trailOpacityVal').innerText = e.target.value;
+      });
+      document.getElementById('flowFieldType').addEventListener('change', (e) => {
+        settings.flowFieldType = e.target.value;
+      });
+      document.getElementById('simulationMode').addEventListener('change', (e) => {
+        settings.simulationMode = e.target.value;
+      });
+      document.getElementById('mouseMode').addEventListener('change', (e) => {
+        settings.mouseMode = e.target.value;
+      });
+      document.getElementById('vectorField').addEventListener('change', (e) => {
+        settings.vectorField = e.target.checked;
+      });
+      document.getElementById('audioReactive').addEventListener('change', (e) => {
+        settings.audioReactive = e.target.checked;
+        if (settings.audioReactive && !audioContext) { initAudio(); }
+      });
+      document.getElementById('resetBtn').addEventListener('click', resetParticles);
+
+      // Additional UI buttons: Pause/Resume, Randomize, Save, Load
+      let paused = false;
+      const pauseBtn = document.getElementById('pauseBtn');
+      pauseBtn.addEventListener('click', () => {
+        paused = !paused;
+        pauseBtn.innerText = paused ? "Resume Simulation" : "Pause Simulation";
+      });
+      const randomizeBtn = document.getElementById('randomizeBtn');
+      randomizeBtn.addEventListener('click', () => {
+        document.getElementById('particleCount').value = Math.floor(Math.random() * 4500) + 500;
+        settings.particleCount = Number(document.getElementById('particleCount').value);
+        document.getElementById('particleCountVal').innerText = document.getElementById('particleCount').value;
+        
+        document.getElementById('baseSpeed').value = (Math.random() * 4.9 + 0.1).toFixed(1);
+        settings.baseSpeed = Number(document.getElementById('baseSpeed').value);
+        document.getElementById('baseSpeedVal').innerText = document.getElementById('baseSpeed').value;
+        
+        document.getElementById('attraction').value = (Math.random() * 0.05).toFixed(3);
+        settings.attraction = Number(document.getElementById('attraction').value);
+        document.getElementById('attractionVal').innerText = document.getElementById('attraction').value;
+        
+        document.getElementById('trailOpacity').value = (Math.random() * 0.49 + 0.01).toFixed(2);
+        settings.trailOpacity = Number(document.getElementById('trailOpacity').value);
+        document.getElementById('trailOpacityVal').innerText = document.getElementById('trailOpacity').value;
+        
+        const flowOptions = ["Sine Wave", "Cosine Wave", "SinCos", "Radial", "Spiral", "Perlin Noise", "Wave", "Oscillatory", "Vortex", "Curl Noise", "Diffusive Flow", "Chaotic Flow", "Logarithmic Spiral", "Tangential", "Harmonic", "Lissajous Flow", "Elliptical Flow", "Rotational Flow", "Modulated Wave Flow", "Composite Noise Flow"];
+        const simOptions = ["Normal", "Chaos", "Pulse", "Gravity", "Magnetic", "Nebula", "Glitch", "Fractal", "Spectrum", "Swarm", "Time Warp", "Reflective"];
+        const mouseOptions = ["Attract", "Repel"];
+        settings.flowFieldType = flowOptions[Math.floor(Math.random() * flowOptions.length)];
+        document.getElementById('flowFieldType').value = settings.flowFieldType;
+        settings.simulationMode = simOptions[Math.floor(Math.random() * simOptions.length)];
+        document.getElementById('simulationMode').value = settings.simulationMode;
+        settings.mouseMode = mouseOptions[Math.floor(Math.random() * mouseOptions.length)];
+        document.getElementById('mouseMode').value = settings.mouseMode;
+        resetParticles();
+      });
+      const saveSettingsBtn = document.getElementById('saveSettingsBtn');
+      saveSettingsBtn.addEventListener('click', () => {
+        localStorage.setItem('particleSimSettings', JSON.stringify(settings));
+        alert("Settings Saved!");
+      });
+      const loadSettingsBtn = document.getElementById('loadSettingsBtn');
+      loadSettingsBtn.addEventListener('click', () => {
+        const saved = localStorage.getItem('particleSimSettings');
+        if (saved) {
+          const loaded = JSON.parse(saved);
+          settings.particleCount = loaded.particleCount;
+          document.getElementById('particleCount').value = loaded.particleCount;
+          document.getElementById('particleCountVal').innerText = loaded.particleCount;
+          settings.baseSpeed = loaded.baseSpeed;
+          document.getElementById('baseSpeed').value = loaded.baseSpeed;
+          document.getElementById('baseSpeedVal').innerText = loaded.baseSpeed;
+          settings.attraction = loaded.attraction;
+          document.getElementById('attraction').value = loaded.attraction;
+          document.getElementById('attractionVal').innerText = loaded.attraction;
+          settings.trailOpacity = loaded.trailOpacity;
+          document.getElementById('trailOpacity').value = loaded.trailOpacity;
+          document.getElementById('trailOpacityVal').innerText = loaded.trailOpacity;
+          settings.flowFieldType = loaded.flowFieldType;
+          document.getElementById('flowFieldType').value = loaded.flowFieldType;
+          settings.simulationMode = loaded.simulationMode;
+          document.getElementById('simulationMode').value = loaded.simulationMode;
+          settings.mouseMode = loaded.mouseMode;
+          document.getElementById('mouseMode').value = loaded.mouseMode;
+          settings.vectorField = loaded.vectorField;
+          document.getElementById('vectorField').checked = loaded.vectorField;
+          settings.audioReactive = loaded.audioReactive;
+          document.getElementById('audioReactive').checked = loaded.audioReactive;
+          settings.useCustomPalette = loaded.useCustomPalette;
+          document.getElementById('useCustomPalette').checked = loaded.useCustomPalette;
+          if (loaded.customPalette && Array.isArray(loaded.customPalette)) {
+            settings.customPalette = loaded.customPalette;
+            paletteInputs.forEach((id, index) => {
+              document.getElementById(id).value = loaded.customPalette[index] || "#ffffff";
+            });
+          }
+          if (settings.audioReactive && !audioContext) { initAudio(); }
+          resetParticles();
+          alert("Settings Loaded!");
+        } else { alert("No saved settings found."); }
+      });
+
+      // Floating Minimize Button
+      const minimizeBtn = document.getElementById('minimizeBtn');
+      let menusMinimized = false;
+      minimizeBtn.addEventListener('click', () => {
+        menusMinimized = !menusMinimized;
+        const controlPanel = document.getElementById('control-panel');
+        const debugDiv = document.getElementById('debug');
+        if (menusMinimized) {
+          controlPanel.style.display = 'none';
+          debugDiv.style.display = 'none';
+          minimizeBtn.innerText = 'Restore Menus';
+        } else {
+          controlPanel.style.display = 'block';
+          debugDiv.style.display = 'block';
+          minimizeBtn.innerText = 'Minimize Menus';
+        }
+      });
+
+      // Particle class with all features intact
+      class Particle {
+        constructor(x, y) {
+          this.x = (x !== undefined) ? x : Math.random() * canvas.width;
+          this.y = (y !== undefined) ? y : Math.random() * canvas.height;
+          this.layer = Math.random();
+          this.speed = settings.baseSpeed * (0.5 + this.layer);
+          if (settings.useCustomPalette) {
+            this.color = settings.customPalette[Math.floor(Math.random() * settings.customPalette.length)];
+          } else {
+            this.hue = Math.random() * 360;
+          }
+          this.size = 1 + this.layer * 3;
+          this.age = 0;
+          this.lifespan = 300 + Math.random() * 500;
+          this.charge = Math.random() < 0.5 ? -1 : 1;
+        }
+        update(time, speedMod) {
+          let angle = getFlowAngle(this.x, this.y, time, settings.flowFieldType);
+          if (settings.simulationMode === "Chaos") { angle += (Math.random() - 0.5) * 0.5; }
+          if (settings.simulationMode === "Magnetic") { angle += this.charge * 0.2 * Math.sin(time * 0.001); }
+          if (settings.simulationMode === "Gravity") {
+            const cx = canvas.width / 2, cy = canvas.height / 2;
+            let dx = cx - this.x, dy = cy - this.y;
+            let gravForce = 0.0005;
+            this.x += dx * gravForce;
+            this.y += dy * gravForce;
+          }
+          let effectiveSpeedMod = speedMod;
+          if (settings.simulationMode === "Time Warp") {
+            let timeFactor = 1 + Math.sin(time * 0.002) * 0.5;
+            effectiveSpeedMod *= timeFactor;
+          }
+          let vx = Math.cos(angle) * this.speed * effectiveSpeedMod;
+          let vy = Math.sin(angle) * this.speed * effectiveSpeedMod;
+          this.x += vx;
+          this.y += vy;
+          // When mouseDown (or touch is held), apply the attract/repel effect
+          if (mouseDown) {
+            let dx = mouse.x - this.x;
+            let dy = mouse.y - this.y;
+            let force = settings.attraction;
+            if (settings.mouseMode === "Repel") force = -force;
+            this.x += dx * force;
+            this.y += dy * force;
+          }
+          // Wrap around screen edges
+          if (this.x < 0) this.x = canvas.width;
+          if (this.x > canvas.width) this.x = 0;
+          if (this.y < 0) this.y = canvas.height;
+          if (this.y > canvas.height) this.y = 0;
+          // Swarm behavior
+          if (settings.simulationMode === "Swarm") {
+            let neighborCount = 0, avgX = 0, avgY = 0;
+            for (let other of particles) {
+              if (other === this) continue;
+              let dx = other.x - this.x, dy = other.y - this.y;
+              let dist = Math.sqrt(dx * dx + dy * dy);
+              if (dist < 50) { avgX += other.x; avgY += other.y; neighborCount++; }
+            }
+            if (neighborCount > 0) {
+              avgX /= neighborCount;
+              avgY /= neighborCount;
+              let steerX = (avgX - this.x) * 0.01;
+              let steerY = (avgY - this.y) * 0.01;
+              this.x += steerX;
+              this.y += steerY;
+            }
+          }
+          // Glitch mode
+          if (settings.simulationMode === "Glitch") {
+            if (Math.random() < 0.01) {
+              this.x += (Math.random() - 0.5) * 40;
+              this.y += (Math.random() - 0.5) * 40;
+              if (!settings.useCustomPalette) { this.hue = Math.random() * 360; }
+              else { this.color = settings.customPalette[Math.floor(Math.random() * settings.customPalette.length)]; }
+            }
+          }
+          this.age++;
+          if (this.age > this.lifespan) this.reset();
+          if (!settings.useCustomPalette) {
+            if (settings.simulationMode === "Spectrum") { this.hue = (this.hue + 0.6) % 360; }
+            else { this.hue = (this.hue + 0.3) % 360; }
+          }
+        }
+        reset() {
+          this.x = Math.random() * canvas.width;
+          this.y = Math.random() * canvas.height;
+          this.age = 0;
+          this.lifespan = 300 + Math.random() * 500;
+          if (settings.useCustomPalette) {
+            this.color = settings.customPalette[Math.floor(Math.random() * settings.customPalette.length)];
+          } else { this.hue = Math.random() * 360; }
+        }
+        draw(ctx, time) {
+          if (settings.simulationMode === "Nebula") {
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = settings.useCustomPalette ? this.color : `hsl(${this.hue}, 100%, 40%)`;
+          } else {
+            ctx.shadowBlur = 0;
+          }
+          let drawSize = this.size;
+          if (settings.simulationMode === "Pulse") {
+            drawSize = this.size * (1 + Math.sin(time * 0.005 + this.layer * Math.PI));
+          }
+          if (!settings.useCustomPalette) {
+            ctx.fillStyle = `hsl(${this.hue}, 100%, 50%)`;
+          } else {
+            ctx.fillStyle = this.color;
+          }
+          ctx.beginPath();
+          ctx.arc(this.x, this.y, drawSize, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.shadowBlur = 0;
+          if (settings.simulationMode === "Fractal") {
+            let angle = getFlowAngle(this.x, this.y, time, settings.flowFieldType);
+            let branchSize = drawSize * 0.5, offset = 5;
+            ctx.beginPath();
+            ctx.arc(this.x + Math.cos(angle + 0.5) * offset, this.y + Math.sin(angle + 0.5) * offset, branchSize, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(this.x + Math.cos(angle - 0.5) * offset, this.y + Math.sin(angle - 0.5) * offset, branchSize, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          if (settings.simulationMode === "Reflective") {
+            ctx.beginPath();
+            ctx.arc(canvas.width - this.x, this.y, drawSize, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+      }
+
+      function getFlowAngle(x, y, time, fieldType) {
+        const cx = canvas.width / 2, cy = canvas.height / 2;
+        const r = Math.sqrt((x - cx)**2 + (y - cy)**2);
+        switch(fieldType) {
+          case "Sine Wave":
+            return Math.sin(x * 0.01 + time * 0.001) * Math.PI;
+          case "Cosine Wave":
+            return Math.cos(x * 0.01 + time * 0.001) * Math.PI;
+          case "SinCos":
+            return (Math.sin(x * 0.005 + time * 0.0005) + Math.cos(y * 0.005 + time * 0.0005)) * (Math.PI/2);
+          case "Radial":
+            return Math.atan2(y - cy, x - cx);
+          case "Spiral":
+            return Math.atan2(y - cy, x - cx) + 0.05 * r;
+          case "Perlin Noise": {
+            let n = noise.noise2D(x * 0.005, y * 0.005 + time * 0.0003);
+            return n * Math.PI * 2;
+          }
+          case "Wave":
+            return Math.sin(x * 0.01) * Math.PI;
+          case "Oscillatory":
+            return Math.sin(x * 0.005 + time * 0.001) * Math.cos(y * 0.005 + time * 0.001) * 2 * Math.PI;
+          case "Vortex":
+            return Math.atan2(y - cy, x - cx) + Math.PI/2;
+          case "Curl Noise": {
+            const delta = 1;
+            let nx1 = noise.noise2D(x + delta, y);
+            let nx2 = noise.noise2D(x - delta, y);
+            let ny1 = noise.noise2D(x, y + delta);
+            let ny2 = noise.noise2D(x, y - delta);
+            let dNoise_dx = nx1 - nx2;
+            let dNoise_dy = ny1 - ny2;
+            return Math.atan2(-dNoise_dy, dNoise_dx);
+          }
+          case "Diffusive Flow":
+            return (Math.sin(x * 0.005) + Math.sin(y * 0.005)) * (Math.PI/2);
+          case "Chaotic Flow":
+            return (Math.sin(x * 0.01 + time * 0.001) + Math.cos(y * 0.01 + time * 0.001)) * Math.PI + (Math.random()-0.5)*0.3;
+          case "Logarithmic Spiral":
+            return Math.atan2(y - cy, x - cx) + Math.log(r + 1) * 0.1;
+          case "Tangential":
+            return Math.atan2(y - cy, x - cx) + Math.PI/2;
+          case "Harmonic":
+            return (Math.sin(x * 0.005) + 0.5 * Math.sin(x * 0.01) + Math.cos(y * 0.005) + 0.5 * Math.cos(y * 0.01)) * (Math.PI/4);
+          case "Lissajous Flow":
+            return Math.atan2(Math.sin(x * 0.01 + time * 0.001), Math.cos(y * 0.01 + time * 0.001));
+          case "Elliptical Flow": {
+            let dx = (x - cx) * 1.5, dy = y - cy;
+            return Math.atan2(dy, dx);
+          }
+          case "Rotational Flow":
+            return Math.atan2(y - cy, x - cx) + (time * 0.001);
+          case "Modulated Wave Flow":
+            return (Math.sin(x * 0.01) + 0.5 * Math.sin(x * 0.02 + time * 0.001)) * (Math.PI/2);
+          case "Composite Noise Flow": {
+            let n1 = noise.noise2D(x * 0.005, y * 0.005 + time * 0.0003);
+            let n2 = noise.noise2D((x+100) * 0.005, (y+100) * 0.005 + time * 0.0003);
+            return ((n1 + n2) / 2) * Math.PI * 2;
+          }
+          default:
+            return 0;
+        }
+      }
+
+      // Particle array and reset function
+      let particles = [];
+      function resetParticles() {
+        particles = [];
+        for (let i = 0; i < settings.particleCount; i++) {
+          particles.push(new Particle());
+        }
+      }
+      resetParticles();
+
+      // Vector Field Visualization (if enabled)
+      function drawVectorField() {
+        const spacing = 30;
+        ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+        ctx.lineWidth = 1;
+        for (let x = 0; x < canvas.width; x += spacing) {
+          for (let y = 0; y < canvas.height; y += spacing) {
+            let angle = getFlowAngle(x, y, 0, settings.flowFieldType);
+            const len = spacing * 0.4;
+            const x2 = x + Math.cos(angle) * len;
+            const y2 = y + Math.sin(angle) * len;
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            ctx.lineTo(x2, y2);
+            ctx.stroke();
+          }
+        }
+      }
+
+      // Debug overlay & FPS counter
+      const debugDiv = document.getElementById('debug');
+      let lastTime = 0, fps = 0;
+      function animate(time) {
+        fps = Math.round(1000 / (time - lastTime));
+        lastTime = time;
+        let speedMod = 1;
+        if (settings.audioReactive && analyser) {
+          analyser.getByteFrequencyData(dataArray);
+          let avg = dataArray.reduce((sum, val) => sum + val, 0) / dataArray.length;
+          speedMod = 1 + avg / 256;
+        }
+        if (!paused) {
+          ctx.globalCompositeOperation = 'source-over';
+          const grad = ctx.createLinearGradient(0, 0, window.innerWidth, window.innerHeight);
+          grad.addColorStop(0, `rgba(10,10,30,${settings.trailOpacity})`);
+          grad.addColorStop(1, `rgba(0,0,0,${settings.trailOpacity})`);
+          ctx.fillStyle = grad;
+          ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
+          ctx.globalCompositeOperation = 'source-over';
+          particles.forEach(p => { p.update(time, speedMod); p.draw(ctx, time); });
+          if (settings.vectorField) { drawVectorField(); }
+        }
+        debugDiv.innerHTML = `
+          Mode: ${settings.simulationMode}<br>
+          Flow Field: ${settings.flowFieldType}<br>
+          Mouse Mode: ${settings.mouseMode}<br>
+          Particles: ${particles.length}<br>
+          FPS: ${fps}
+        `;
+        requestAnimationFrame(animate);
+      }
+      animate(0);
+    </script>
+  </body>
+</html>
